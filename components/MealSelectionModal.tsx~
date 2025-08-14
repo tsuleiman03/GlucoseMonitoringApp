@@ -1,0 +1,111 @@
+// components/MealSelectionModal.tsx
+
+// Version: 1.0.1
+// Date: 2025-08-10
+// Changes: Added top padding to the modal container to fix layout issue.
+
+import React from 'react';
+import { View, Text, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { Colors } from '@/constants/Colors';
+
+// Define the structure for a meal item
+export interface MealItem {
+  id: string;
+  name: string;
+  portion: 'small' | 'medium' | 'large';
+}
+
+interface Props {
+  visible: boolean;
+  mealOptions: MealItem[];
+  selectedMeals: MealItem[];
+  onClose: () => void;
+  onSelectionChange: (selected: MealItem[]) => void;
+}
+
+export function MealSelectionModal({ visible, mealOptions, selectedMeals, onClose, onSelectionChange }: Props) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const themeColors = Colors[colorScheme];
+
+  const handleSelect = (item: MealItem) => {
+    const isSelected = selectedMeals.some(m => m.id === item.id);
+    let newSelection;
+    if (isSelected) {
+      newSelection = selectedMeals.filter(m => m.id !== item.id);
+    } else {
+      newSelection = [...selectedMeals, item];
+    }
+    onSelectionChange(newSelection);
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={false}>
+      <SafeAreaView style={[styles.modalContainer, { backgroundColor: themeColors.background }]}>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: themeColors.text }]}>Select Meal Items</Text>
+          <Pressable onPress={onClose}>
+            <Text style={[styles.doneButton, { color: themeColors.tint }]}>Done</Text>
+          </Pressable>
+        </View>
+        <ScrollView>
+          {mealOptions.map(item => {
+            const isSelected = selectedMeals.some(m => m.id === item.id);
+            return (
+              <Pressable key={item.id} style={styles.itemContainer} onPress={() => handleSelect(item)}>
+                <View style={[styles.checkbox, { borderColor: themeColors.tint }, isSelected && { backgroundColor: themeColors.tint }]}>
+                  {isSelected && <Text style={{ color: themeColors.background }}>✓</Text>}
+                </View>
+                <Text style={[styles.itemText, { color: themeColors.text }]}>{`${item.name} [${item.portion}]`}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  modalContainer: {
+    flex: 1,
+    // --- MODIFICATION: Added padding to push content down ---
+    paddingTop: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  doneButton: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  itemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderRadius: 4,
+    marginRight: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemText: {
+    fontSize: 18,
+  },
+});

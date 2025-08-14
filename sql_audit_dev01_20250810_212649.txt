@@ -1,0 +1,28 @@
+
+==== SYSTEM ====
+Host: dev01  |  Kernel: 6.1.0-37-amd64  |  User: tsuleiman
+Time: 2025-08-10T21:26:49+01:00
+
+==== PACKAGE INVENTORY (dpkg) ====
+mariadb-common	1:10.11.11-0+deb12u1
+mysql-common	5.8+1.1.0
+
+==== SYSTEMD SERVICES (installed/enabled/running) ====
+
+
+==== RUNNING PROCESSES (ps) ====
+No matching DB processes in ps.
+
+==== LISTENING TCP PORTS ====
+State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess                               
+
+==== CLIENT BINARIES ====
+
+==== CONTAINERS (docker/podman) ====
+
+==== COMMON DATA/CONFIG PATHS ====
+EXISTS: /etc/mysql
+
+==== SUMMARY (best guess) ====
+Any SQL server detected: no
+Full report saved to: sql_audit_dev01_20250810_212649.txt
