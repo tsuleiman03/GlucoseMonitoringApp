@@ -1,8 +1,9 @@
 // components/ui/IconSymbol.tsx
 
-// Version: 1.2.0
+// Version: 1.3.0
 // Date: 2025-08-16
 // Changes: 
+// - Added 'pencil' and 'trash' icons for the MasterDataList component.
 // - Added 'plus' icon mapping for the home screen FAB.
 // - Added version header for consistency.
 // - Added 'gear' icon mapping for the AppHeader settings button.
@@ -28,7 +29,9 @@ const MAPPING = {
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
   'gear': 'settings',
-  'plus': 'add', // CHANGE: Added plus icon mapping
+  'plus': 'add',
+  'pencil': 'edit', // CHANGE: Added pencil icon mapping
+  'trash': 'delete', // CHANGE: Added trash icon mapping
 } as IconMapping;
 
 /**
