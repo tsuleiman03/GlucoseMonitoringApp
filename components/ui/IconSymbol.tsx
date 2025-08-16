@@ -1,3 +1,12 @@
+// components/ui/IconSymbol.tsx
+
+// Version: 1.2.0
+// Date: 2025-08-16
+// Changes: 
+// - Added 'plus' icon mapping for the home screen FAB.
+// - Added version header for consistency.
+// - Added 'gear' icon mapping for the AppHeader settings button.
+
 // Fallback for using MaterialIcons on Android and web.
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -18,6 +27,8 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  'gear': 'settings',
+  'plus': 'add', // CHANGE: Added plus icon mapping
 } as IconMapping;
 
 /**
