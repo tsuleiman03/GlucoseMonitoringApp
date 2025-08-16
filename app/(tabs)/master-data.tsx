@@ -1,92 +1,103 @@
 // app/(tabs)/master-data.tsx
 
-// Version: 1.3.0
+// Version: 2.1.0
 // Date: 2025-08-16
 // Changes: 
-// - FIXED: Removed the outer ScrollView to prevent VirtualizedList nesting error.
-// - Integrated the MasterDataList component to display food items.
-// - Implemented the tabbed UI skeleton for the Master Data Setup Wizard.
+// - CHANGE: Replaced horizontal tabs with vertical list navigation
+// - CHANGE: Added all database tables from schema
+// - CHANGE: Implemented navigation to individual table management screens
+// - CHANGE: Scalable design for future table additions
+// - CHANGE: Updated navigation to route to /master-data/{tableId} screens
 
-import React, { useState } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import React from 'react';
+import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import { AppHeader } from '@/components/AppHeader';
 import { ThemedText } from '@/components/ThemedText';
-import { MasterDataList } from '@/components/MasterDataList';
+import { IconSymbol } from '@/components/ui/IconSymbol';
+import { useRouter } from 'expo-router';
 
-type MasterDataTab = 'fooditem' | 'portionsize' | 'exercisetype' | 'effortlevel';
+type MasterDataTable = {
+  id: string;
+  name: string;
+  description: string;
+  category: 'food' | 'exercise' | 'medical';
+};
 
-const TABS: { id: MasterDataTab; title: string }[] = [
-  { id: 'fooditem', title: 'Food Items' },
-  { id: 'portionsize', title: 'Portion Sizes' },
-  { id: 'exercisetype', title: 'Exercise Types' },
-  { id: 'effortlevel', title: 'Effort Levels' },
-];
-
-// Mock data for demonstration
-const MOCK_FOOD_ITEMS = [
-    { id: '1', name: 'Apple' },
-    { id: '2', name: 'Banana' },
-    { id: '3', name: 'Chicken Breast' },
+const MASTER_DATA_TABLES: MasterDataTable[] = [
+  { id: 'fooditem', name: 'Food Items', description: 'Manage food and drink items', category: 'food' },
+  { id: 'portionsize', name: 'Portion Sizes', description: 'Define serving sizes (small, medium, large)', category: 'food' },
+  { id: 'exercisetype', name: 'Exercise Types', description: 'Types of physical activities', category: 'exercise' },
+  { id: 'effortlevel', name: 'Effort Levels', description: 'Exercise intensity levels', category: 'exercise' },
 ];
 
 export default function MasterDataScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
-  const [activeTab, setActiveTab] = useState<MasterDataTab>('fooditem');
+  const router = useRouter();
 
-  const [foodItems, setFoodItems] = useState(MOCK_FOOD_ITEMS);
+  const handleTablePress = (tableId: string) => {
+    // Navigate to individual table management screen
+    router.push(`/master-data/${tableId}` as any);
+  };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'fooditem':
-        return (
-          <MasterDataList
-            items={foodItems}
-            onAddItem={(name) => setFoodItems([...foodItems, { id: Date.now().toString(), name }])}
-            onUpdateItem={(id, newName) => console.log('Update', id, newName)}
-            onDeleteItem={(id) => setFoodItems(foodItems.filter(item => item.id !== id))}
-          />
-        );
-      case 'portionsize':
-      case 'exercisetype':
-      case 'effortlevel':
-      default:
-        return (
-          <View style={styles.contentPlaceholder}>
-            <ThemedText>Content for {TABS.find(t => t.id === activeTab)?.title}</ThemedText>
-          </View>
-        );
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'food': return 'leaf.fill';
+      case 'exercise': return 'figure.run';
+      case 'medical': return 'cross.fill';
+      default: return 'doc.text';
     }
   };
+
+  const renderTableItem = ({ item }: { item: MasterDataTable }) => (
+    <Pressable
+      style={[styles.tableItem, { borderBottomColor: themeColors.icon }]}
+      onPress={() => handleTablePress(item.id)}
+    >
+      <View style={styles.tableItemLeft}>
+        <IconSymbol 
+          name={getCategoryIcon(item.category)} 
+          size={24} 
+          color={themeColors.tint} 
+        />
+        <View style={styles.tableItemText}>
+          <ThemedText style={[styles.tableItemTitle, { color: themeColors.text }]}>
+            {item.name}
+          </ThemedText>
+          <ThemedText style={[styles.tableItemDescription, { color: themeColors.icon }]}>
+            {item.description}
+          </ThemedText>
+        </View>
+      </View>
+      <IconSymbol name="chevron.right" size={20} color={themeColors.icon} />
+    </Pressable>
+  );
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: themeColors.background }]}>
       <AppHeader title="Master Data Setup" />
       
-      <View style={styles.tabContainer}>
-        {TABS.map(tab => (
-          <Pressable
-            key={tab.id}
-            style={[
-              styles.tab,
-              activeTab === tab.id && { borderBottomColor: themeColors.tint, borderBottomWidth: 2 }
-            ]}
-            onPress={() => setActiveTab(tab.id)}
-          >
-            <ThemedText style={[styles.tabTitle, activeTab === tab.id && { color: themeColors.tint }]}>
-              {tab.title}
-            </ThemedText>
-          </Pressable>
-        ))}
-      </View>
+      <ScrollView style={styles.container}>
+        <View style={styles.sectionHeader}>
+          <ThemedText style={[styles.sectionTitle, { color: themeColors.text }]}>
+            Database Tables
+          </ThemedText>
+          <ThemedText style={[styles.sectionSubtitle, { color: themeColors.icon }]}>
+            Configure your master data
+          </ThemedText>
+        </View>
 
-      {/* CHANGE: Replaced ScrollView with a regular View */}
-      <View style={styles.contentContainer}>
-        {renderContent()}
-      </View>
+        {MASTER_DATA_TABLES.map((table) => (
+          <View key={table.id}>
+            {renderTableItem({ item: table })}
+          </View>
+        ))}
+
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -95,29 +106,48 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  tabContainer: {
+  container: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  sectionHeader: {
+    paddingVertical: 20,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 16,
+  },
+  tableItem: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
   },
-  tab: {
-    paddingVertical: 12,
-    flex: 1,
+  tableItemLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
-  tabTitle: {
-    fontSize: 14,
+  tableItemText: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  tableItemTitle: {
+    fontSize: 18,
     fontWeight: '600',
+    marginBottom: 2,
   },
-  contentContainer: {
-    padding: 16,
-    flex: 1, // Allow the container to fill the available space
+  tableItemDescription: {
+    fontSize: 14,
   },
-  contentPlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
+  bottomSpacer: {
+    height: 100,
   },
 });
