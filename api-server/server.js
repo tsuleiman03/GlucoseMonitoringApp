@@ -1,10 +1,27 @@
 // api-server/server.js
 
-// Version: 2.1.0
+// Version: 2.6.0
 // Date: 2025-08-17
 // Changes: 
-// - CHANGE: Updated portionsize endpoints to use audit columns consistently with other tables
-// - CHANGE: Added proper active filtering and audit column handling for portionsize
+// - CHANGE: Added CRUD endpoints for measurementexercise table
+// - CHANGE: Added /api/measurementexercises endpoints for linking exercises to measurement entries
+// - CHANGE: Used composite keys (exerciseid, measuremententryid) for PUT/DELETE operations
+// - CHANGE: Added proper validation for exercise ID and measurement entry ID references
+// - CHANGE: Completed all API endpoints needed for measurement entry coordination
+// - Previous: Added CRUD endpoints for measurementmeal table
+// - Previous: Added /api/measurementmeals endpoints for linking meals to measurement entries
+// - Previous: Used composite keys (mealid, measuremententryid) for PUT/DELETE operations
+// - Previous: Added proper validation for meal ID and measurement entry ID references
+// - Previous: Added CRUD endpoints for measuremententry table
+// - Previous: Added /api/measuremententries endpoints for creating measurement entries linked to glucose readings
+// - Previous: Added proper validation for glucose reading ID references
+// - Previous: Added CRUD endpoints for exercise table
+// - Previous: Added /api/exercises endpoints for creating exercise records with duration, exercisetypeid, and effortlevelid
+// - Previous: Added proper validation for exercise duration and IDs
+// - Previous: Added CRUD endpoints for meals table
+// - Previous: Added /api/meals endpoints for creating meal records with fooditemid and portionsizeid
+// - Previous: Updated portionsize endpoints to use audit columns consistently with other tables
+// - Previous: Added proper active filtering and audit column handling for portionsize
 // - Previous: Added CRUD endpoints for all 10 database tables
 // - Previous: Added portionsizes, effortlevel, exercisetype, exercise, glucosereading, meal, measuremententry, measurementexercise, measurementmeal endpoints
 // - Previous: All endpoints follow consistent UUID primary key and audit column patterns
@@ -460,6 +477,505 @@ app.delete('/api/exercisetypes/:id', async (req, res) => {
 });
 
 // =============================================================================
+// MEASUREMENT EXERCISES CRUD endpoints
+// =============================================================================
+
+// GET /api/measurementexercises - Get all active measurement exercises
+app.get('/api/measurementexercises', async (req, res) => {
+  try {
+    const client = await pool.connect();
+    const result = await client.query(
+      'SELECT exerciseid, measuremententryid, active, created_at, created_by, modified_at, modified_by FROM glucose_app.measurementexercise WHERE active = true ORDER BY created_at DESC'
+    );
+    client.release();
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching measurement exercises:', error);
+    res.status(500).json({ error: 'Failed to fetch measurement exercises' });
+  }
+});
+
+// POST /api/measurementexercises - Add new measurement exercise
+app.post('/api/measurementexercises', async (req, res) => {
+  try {
+    const { exerciseid, measuremententryid, created_by = 'api-user' } = req.body;
+    
+    if (!exerciseid || !measuremententryid) {
+      return res.status(400).json({ error: 'Exercise ID and measurement entry ID are required' });
+    }
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `INSERT INTO glucose_app.measurementexercise (exerciseid, measuremententryid, created_by, modified_by) 
+       VALUES ($1, $2, $3, $3) 
+       RETURNING exerciseid, measuremententryid, active, created_at, created_by, modified_at, modified_by`,
+      [exerciseid, measuremententryid, created_by]
+    );
+    client.release();
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error adding measurement exercise:', error);
+    res.status(500).json({ error: 'Failed to add measurement exercise' });
+  }
+});
+
+// PUT /api/measurementexercises/:exerciseid/:measuremententryid - Update measurement exercise
+app.put('/api/measurementexercises/:exerciseid/:measuremententryid', async (req, res) => {
+  try {
+    const { exerciseid, measuremententryid } = req.params;
+    const { modified_by = 'api-user' } = req.body;
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `UPDATE glucose_app.measurementexercise 
+       SET modified_by = $1, modified_at = CURRENT_TIMESTAMP 
+       WHERE exerciseid = $2 AND measuremententryid = $3 AND active = true 
+       RETURNING exerciseid, measuremententryid, active, created_at, created_by, modified_at, modified_by`,
+      [modified_by, exerciseid, measuremententryid]
+    );
+    client.release();
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Measurement exercise not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating measurement exercise:', error);
+    res.status(500).json({ error: 'Failed to update measurement exercise' });
+  }
+});
+
+// DELETE /api/measurementexercises/:exerciseid/:measuremententryid - Soft delete measurement exercise
+app.delete('/api/measurementexercises/:exerciseid/:measuremententryid', async (req, res) => {
+  try {
+    const { exerciseid, measuremententryid } = req.params;
+    const { modified_by = 'api-user' } = req.body;
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `UPDATE glucose_app.measurementexercise 
+       SET active = false, modified_by = $1, modified_at = CURRENT_TIMESTAMP 
+       WHERE exerciseid = $2 AND measuremententryid = $3 AND active = true`,
+      [modified_by, exerciseid, measuremententryid]
+    );
+    client.release();
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Measurement exercise not found' });
+    }
+    
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting measurement exercise:', error);
+    res.status(500).json({ error: 'Failed to delete measurement exercise' });
+  }
+});
+
+// =============================================================================
+// MEASUREMENT MEALS CRUD endpoints
+// =============================================================================
+
+// GET /api/measurementmeals - Get all active measurement meals
+app.get('/api/measurementmeals', async (req, res) => {
+  try {
+    const client = await pool.connect();
+    const result = await client.query(
+      'SELECT mealid, measuremententryid, active, created_at, created_by, modified_at, modified_by FROM glucose_app.measurementmeal WHERE active = true ORDER BY created_at DESC'
+    );
+    client.release();
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching measurement meals:', error);
+    res.status(500).json({ error: 'Failed to fetch measurement meals' });
+  }
+});
+
+// POST /api/measurementmeals - Add new measurement meal
+app.post('/api/measurementmeals', async (req, res) => {
+  try {
+    const { mealid, measuremententryid, created_by = 'api-user' } = req.body;
+    
+    if (!mealid || !measuremententryid) {
+      return res.status(400).json({ error: 'Meal ID and measurement entry ID are required' });
+    }
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `INSERT INTO glucose_app.measurementmeal (mealid, measuremententryid, created_by, modified_by) 
+       VALUES ($1, $2, $3, $3) 
+       RETURNING mealid, measuremententryid, active, created_at, created_by, modified_at, modified_by`,
+      [mealid, measuremententryid, created_by]
+    );
+    client.release();
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error adding measurement meal:', error);
+    res.status(500).json({ error: 'Failed to add measurement meal' });
+  }
+});
+
+// PUT /api/measurementmeals/:mealid/:measuremententryid - Update measurement meal
+app.put('/api/measurementmeals/:mealid/:measuremententryid', async (req, res) => {
+  try {
+    const { mealid, measuremententryid } = req.params;
+    const { modified_by = 'api-user' } = req.body;
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `UPDATE glucose_app.measurementmeal 
+       SET modified_by = $1, modified_at = CURRENT_TIMESTAMP 
+       WHERE mealid = $2 AND measuremententryid = $3 AND active = true 
+       RETURNING mealid, measuremententryid, active, created_at, created_by, modified_at, modified_by`,
+      [modified_by, mealid, measuremententryid]
+    );
+    client.release();
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Measurement meal not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating measurement meal:', error);
+    res.status(500).json({ error: 'Failed to update measurement meal' });
+  }
+});
+
+// DELETE /api/measurementmeals/:mealid/:measuremententryid - Soft delete measurement meal
+app.delete('/api/measurementmeals/:mealid/:measuremententryid', async (req, res) => {
+  try {
+    const { mealid, measuremententryid } = req.params;
+    const { modified_by = 'api-user' } = req.body;
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `UPDATE glucose_app.measurementmeal 
+       SET active = false, modified_by = $1, modified_at = CURRENT_TIMESTAMP 
+       WHERE mealid = $2 AND measuremententryid = $3 AND active = true`,
+      [modified_by, mealid, measuremententryid]
+    );
+    client.release();
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Measurement meal not found' });
+    }
+    
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting measurement meal:', error);
+    res.status(500).json({ error: 'Failed to delete measurement meal' });
+  }
+});
+
+// =============================================================================
+// MEASUREMENT ENTRIES CRUD endpoints
+// =============================================================================
+
+// GET /api/measuremententries - Get all measurement entries
+app.get('/api/measuremententries', async (req, res) => {
+  try {
+    const client = await pool.connect();
+    const result = await client.query(
+      'SELECT id, glucosereadingid, createdat FROM glucose_app.measuremententry ORDER BY createdat DESC'
+    );
+    client.release();
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching measurement entries:', error);
+    res.status(500).json({ error: 'Failed to fetch measurement entries' });
+  }
+});
+
+// POST /api/measuremententries - Add new measurement entry
+app.post('/api/measuremententries', async (req, res) => {
+  try {
+    const { glucosereadingid, createdat } = req.body;
+    
+    if (!glucosereadingid) {
+      return res.status(400).json({ error: 'Glucose reading ID is required' });
+    }
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `INSERT INTO glucose_app.measuremententry (glucosereadingid, createdat) 
+       VALUES ($1, $2) 
+       RETURNING id, glucosereadingid, createdat`,
+      [glucosereadingid, createdat || new Date().toISOString()]
+    );
+    client.release();
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error adding measurement entry:', error);
+    res.status(500).json({ error: 'Failed to add measurement entry' });
+  }
+});
+
+// PUT /api/measuremententries/:id - Update measurement entry
+app.put('/api/measuremententries/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { glucosereadingid, createdat } = req.body;
+    
+    if (!glucosereadingid) {
+      return res.status(400).json({ error: 'Glucose reading ID is required' });
+    }
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `UPDATE glucose_app.measuremententry 
+       SET glucosereadingid = $1, createdat = $2 
+       WHERE id = $3 
+       RETURNING id, glucosereadingid, createdat`,
+      [glucosereadingid, createdat, id]
+    );
+    client.release();
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Measurement entry not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating measurement entry:', error);
+    res.status(500).json({ error: 'Failed to update measurement entry' });
+  }
+});
+
+// DELETE /api/measuremententries/:id - Delete measurement entry
+app.delete('/api/measuremententries/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `DELETE FROM glucose_app.measuremententry WHERE id = $1`,
+      [id]
+    );
+    client.release();
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Measurement entry not found' });
+    }
+    
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting measurement entry:', error);
+    res.status(500).json({ error: 'Failed to delete measurement entry' });
+  }
+});
+
+// =============================================================================
+// EXERCISES CRUD endpoints
+// =============================================================================
+
+// GET /api/exercises - Get all active exercises
+app.get('/api/exercises', async (req, res) => {
+  try {
+    const client = await pool.connect();
+    const result = await client.query(
+      'SELECT id, durationmin, exercisetypeid, effortlevelid, active, created_at, created_by, modified_at, modified_by FROM glucose_app.exercise WHERE active = true ORDER BY created_at DESC'
+    );
+    client.release();
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching exercises:', error);
+    res.status(500).json({ error: 'Failed to fetch exercises' });
+  }
+});
+
+// POST /api/exercises - Add new exercise
+app.post('/api/exercises', async (req, res) => {
+  try {
+    const { durationmin, exercisetypeid, effortlevelid, created_by = 'api-user' } = req.body;
+    
+    if (!durationmin || !exercisetypeid || !effortlevelid) {
+      return res.status(400).json({ error: 'Duration, exercise type ID, and effort level ID are required' });
+    }
+
+    if (durationmin <= 0) {
+      return res.status(400).json({ error: 'Duration must be greater than 0' });
+    }
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `INSERT INTO glucose_app.exercise (durationmin, exercisetypeid, effortlevelid, created_by, modified_by) 
+       VALUES ($1, $2, $3, $4, $4) 
+       RETURNING id, durationmin, exercisetypeid, effortlevelid, active, created_at, created_by, modified_at, modified_by`,
+      [durationmin, exercisetypeid, effortlevelid, created_by]
+    );
+    client.release();
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error adding exercise:', error);
+    res.status(500).json({ error: 'Failed to add exercise' });
+  }
+});
+
+// PUT /api/exercises/:id - Update exercise
+app.put('/api/exercises/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { durationmin, exercisetypeid, effortlevelid, modified_by = 'api-user' } = req.body;
+    
+    if (!durationmin || !exercisetypeid || !effortlevelid) {
+      return res.status(400).json({ error: 'Duration, exercise type ID, and effort level ID are required' });
+    }
+
+    if (durationmin <= 0) {
+      return res.status(400).json({ error: 'Duration must be greater than 0' });
+    }
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `UPDATE glucose_app.exercise 
+       SET durationmin = $1, exercisetypeid = $2, effortlevelid = $3, modified_by = $4, modified_at = CURRENT_TIMESTAMP 
+       WHERE id = $5 AND active = true 
+       RETURNING id, durationmin, exercisetypeid, effortlevelid, active, created_at, created_by, modified_at, modified_by`,
+      [durationmin, exercisetypeid, effortlevelid, modified_by, id]
+    );
+    client.release();
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating exercise:', error);
+    res.status(500).json({ error: 'Failed to update exercise' });
+  }
+});
+
+// DELETE /api/exercises/:id - Soft delete exercise
+app.delete('/api/exercises/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { modified_by = 'api-user' } = req.body;
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `UPDATE glucose_app.exercise 
+       SET active = false, modified_by = $1, modified_at = CURRENT_TIMESTAMP 
+       WHERE id = $2 AND active = true`,
+      [modified_by, id]
+    );
+    client.release();
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+    
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting exercise:', error);
+    res.status(500).json({ error: 'Failed to delete exercise' });
+  }
+});
+
+// =============================================================================
+// MEALS CRUD endpoints
+// =============================================================================
+
+// GET /api/meals - Get all meals
+app.get('/api/meals', async (req, res) => {
+  try {
+    const client = await pool.connect();
+    const result = await client.query(
+      'SELECT id, fooditemid, portionsizeid FROM glucose_app.meal ORDER BY id'
+    );
+    client.release();
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching meals:', error);
+    res.status(500).json({ error: 'Failed to fetch meals' });
+  }
+});
+
+// POST /api/meals - Add new meal
+app.post('/api/meals', async (req, res) => {
+  try {
+    const { fooditemid, portionsizeid } = req.body;
+    
+    if (!fooditemid || !portionsizeid) {
+      return res.status(400).json({ error: 'Food item ID and portion size ID are required' });
+    }
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `INSERT INTO glucose_app.meal (fooditemid, portionsizeid) 
+       VALUES ($1, $2) 
+       RETURNING id, fooditemid, portionsizeid`,
+      [fooditemid, portionsizeid]
+    );
+    client.release();
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error adding meal:', error);
+    res.status(500).json({ error: 'Failed to add meal' });
+  }
+});
+
+// PUT /api/meals/:id - Update meal
+app.put('/api/meals/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fooditemid, portionsizeid } = req.body;
+    
+    if (!fooditemid || !portionsizeid) {
+      return res.status(400).json({ error: 'Food item ID and portion size ID are required' });
+    }
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `UPDATE glucose_app.meal 
+       SET fooditemid = $1, portionsizeid = $2 
+       WHERE id = $3 
+       RETURNING id, fooditemid, portionsizeid`,
+      [fooditemid, portionsizeid, id]
+    );
+    client.release();
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Meal not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating meal:', error);
+    res.status(500).json({ error: 'Failed to update meal' });
+  }
+});
+
+// DELETE /api/meals/:id - Delete meal
+app.delete('/api/meals/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const client = await pool.connect();
+    const result = await client.query(
+      `DELETE FROM glucose_app.meal WHERE id = $1`,
+      [id]
+    );
+    client.release();
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Meal not found' });
+    }
+    
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting meal:', error);
+    res.status(500).json({ error: 'Failed to delete meal' });
+  }
+});
+
+// =============================================================================
 // GLUCOSE READINGS CRUD endpoints
 // =============================================================================
 
@@ -579,7 +1095,12 @@ async function startServer() {
     console.log(`   - /api/portionsizes`);
     console.log(`   - /api/effortlevels`);
     console.log(`   - /api/exercisetypes`);
+    console.log(`   - /api/measurementexercises`);
+    console.log(`   - /api/measurementmeals`);
+    console.log(`   - /api/measuremententries`);
+    console.log(`   - /api/exercises`);
     console.log(`   - /api/glucosereadings`);
+    console.log(`   - /api/meals`);
   });
 }
 
