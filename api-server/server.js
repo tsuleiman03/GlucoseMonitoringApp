@@ -1,12 +1,14 @@
 // api-server/server.js
 
-// Version: 2.0.0
+// Version: 2.1.0
 // Date: 2025-08-17
 // Changes: 
-// - CHANGE: Added CRUD endpoints for all 10 database tables
-// - CHANGE: Added portionsizes, effortlevel, exercisetype, exercise, glucosereading, meal, measuremententry, measurementexercise, measurementmeal endpoints
-// - CHANGE: All endpoints follow consistent UUID primary key and audit column patterns
-// - CHANGE: Added proper error handling and validation for all new endpoints
+// - CHANGE: Updated portionsize endpoints to use audit columns consistently with other tables
+// - CHANGE: Added proper active filtering and audit column handling for portionsize
+// - Previous: Added CRUD endpoints for all 10 database tables
+// - Previous: Added portionsizes, effortlevel, exercisetype, exercise, glucosereading, meal, measuremententry, measurementexercise, measurementmeal endpoints
+// - Previous: All endpoints follow consistent UUID primary key and audit column patterns
+// - Previous: Added proper error handling and validation for all new endpoints
 // - Previous: Updated to handle UUID primary keys instead of integers
 // - Previous: Added support for audit columns (active, created_at, created_by, modified_at, modified_by)
 // - Previous: Updated FoodItem interface and SQL queries for new schema
@@ -155,15 +157,15 @@ app.delete('/api/fooditems/:id', async (req, res) => {
 });
 
 // =============================================================================
-// PORTION SIZES CRUD endpoints
+// PORTION SIZES CRUD endpoints - CHANGE: Updated to use audit columns
 // =============================================================================
 
-// GET /api/portionsizes - Get all portion sizes
+// GET /api/portionsizes - Get all active portion sizes
 app.get('/api/portionsizes', async (req, res) => {
   try {
     const client = await pool.connect();
     const result = await client.query(
-      'SELECT id, name FROM glucose_app.portionsize ORDER BY name'
+      'SELECT id, name, active, created_at, created_by, modified_at, modified_by FROM glucose_app.portionsize WHERE active = true ORDER BY name'
     );
     client.release();
     res.json(result.rows);
@@ -184,10 +186,10 @@ app.post('/api/portionsizes', async (req, res) => {
 
     const client = await pool.connect();
     const result = await client.query(
-      `INSERT INTO glucose_app.portionsize (name) 
-       VALUES ($1) 
-       RETURNING id, name`,
-      [name.trim()]
+      `INSERT INTO glucose_app.portionsize (name, created_by, modified_by) 
+       VALUES ($1, $2, $2) 
+       RETURNING id, name, active, created_at, created_by, modified_at, modified_by`,
+      [name.trim(), created_by]
     );
     client.release();
     
@@ -211,10 +213,10 @@ app.put('/api/portionsizes/:id', async (req, res) => {
     const client = await pool.connect();
     const result = await client.query(
       `UPDATE glucose_app.portionsize 
-       SET name = $1 
-       WHERE id = $2 
-       RETURNING id, name`,
-      [name.trim(), id]
+       SET name = $1, modified_by = $2, modified_at = CURRENT_TIMESTAMP 
+       WHERE id = $3 AND active = true 
+       RETURNING id, name, active, created_at, created_by, modified_at, modified_by`,
+      [name.trim(), modified_by, id]
     );
     client.release();
     
@@ -229,15 +231,18 @@ app.put('/api/portionsizes/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/portionsizes/:id - Delete portion size
+// DELETE /api/portionsizes/:id - Soft delete portion size
 app.delete('/api/portionsizes/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const { modified_by = 'api-user' } = req.body;
 
     const client = await pool.connect();
     const result = await client.query(
-      `DELETE FROM glucose_app.portionsize WHERE id = $1`,
-      [id]
+      `UPDATE glucose_app.portionsize 
+       SET active = false, modified_by = $1, modified_at = CURRENT_TIMESTAMP 
+       WHERE id = $2 AND active = true`,
+      [modified_by, id]
     );
     client.release();
     
