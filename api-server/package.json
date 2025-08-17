@@ -1,0 +1,13 @@
+{
+  "name": "api-server",
+  "version": "1.0.0",
+  "description": "REST API server for GlucoseMonitoringApp - provides HTTP endpoints for CRUD operations on PostgreSQL database",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["glucose", "monitoring", "api", "postgresql", "express"],
+  "author": "tsuleiman",
+  "license": "ISC"
+}
